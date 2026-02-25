@@ -1,0 +1,326 @@
+import React, { useState, useEffect } from 'react';
+import { Settings, Play, BookOpen, Send, RefreshCw, Loader2, Sparkles, Image as ImageIcon, ChevronRight } from 'lucide-react';
+
+const apiKey = ""; // 執行環境會自動提供
+
+const STYLE_PROMPT = "Simple picture book illustration, minimalist, single concrete object, clean flat colors, soft textures, white or simple pastel background, no clutter, charming and clear.";
+
+const THEMES = [
+  { id: 'daily', name: '生活日常', context: 'Objects found in a cozy home or garden' },
+  { id: 'animal', name: '森林動物', context: 'Cute animals with human-like expressions' },
+  { id: 'workplace', name: '職場生活', context: 'Office supplies, professional items, and work-related objects' },
+  { id: 'festival', name: '傳統節慶', context: 'Items related to traditional holidays, lanterns, decorations, and festive foods' }
+];
+
+const App = () => {
+  const [gameState, setGameState] = useState('setup'); // setup, generating, playing, finished
+  const [imageCount, setImageCount] = useState(4);
+  const [selectedTheme, setSelectedTheme] = useState(THEMES[0]);
+  const [images, setImages] = useState([]);
+  const [story, setStory] = useState('');
+  const [loadingStep, setLoadingStep] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState(null);
+
+  // 調用 Imagen 4.0 生成單純的繪本圖片
+  const generateImage = async (specificObject) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+    const fullPrompt = `${STYLE_PROMPT} A ${specificObject}. ${selectedTheme.context}. High quality, centered composition.`;
+    
+    const payload = {
+      instances: [{ prompt: fullPrompt }],
+      parameters: { sampleCount: 1 }
+    };
+
+    let retries = 5;
+    let delay = 1000;
+
+    while (retries > 0) {
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await resp.json();
+        if (result.predictions?.[0]) {
+          return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+        }
+        throw new Error("Generation failed");
+      } catch (err) {
+        retries--;
+        if (retries === 0) throw err;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    }
+  };
+
+  const getObjectsFromGemini = async (count) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    const systemPrompt = `你是一個繪本遊戲設計師。請為主題 "${selectedTheme.name}" 提供 ${count} 個具體、單純的物件名稱。
+    規則：
+    1. 每個物件必須是非常具體的物件或角色。
+    2. 畫面必須簡單，不要有複雜背景。
+    3. 請用英文回傳物件名稱以便繪圖。`;
+    
+    const userQuery = `請以 JSON 格式回傳: {"objects": ["object1", "object2", ...]}`;
+
+    const payload = {
+      contents: [{ parts: [{ text: userQuery }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: { responseMimeType: "application/json" }
+    };
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await resp.json();
+    return JSON.parse(result.candidates[0].content.parts[0].text).objects;
+  };
+
+  const startGame = async () => {
+    setGameState('generating');
+    setLoadingStep('正在挑選故事靈感...');
+    try {
+      const objectList = await getObjectsFromGemini(imageCount);
+      const generatedImages = [];
+      
+      for (let i = 0; i < objectList.length; i++) {
+        setLoadingStep(`正在繪製第 ${i + 1} 張繪本圖卡...`);
+        const img = await generateImage(objectList[i]);
+        generatedImages.push(img);
+      }
+
+      setImages(generatedImages);
+      setGameState('playing');
+    } catch (error) {
+      console.error(error);
+      setGameState('setup');
+    }
+  };
+
+  const analyzeStory = async () => {
+    setIsAnalyzing(true);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    const userPrompt = `玩家根據這些圖片寫了一個故事。請給予鼓勵並取個書名：\n"${story}"\n回傳 JSON: {"title": "...", "feedback": "..."}`;
+    
+    try {
+      const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: userPrompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+          })
+      });
+      const result = await resp.json();
+      setAiFeedback(JSON.parse(result.candidates[0].content.parts[0].text));
+      setGameState('finished');
+    } catch (e) {
+      setAiFeedback({ title: "奇妙的故事", feedback: "你編織了一個非常動人的故事！" });
+      setGameState('finished');
+    }
+    setIsAnalyzing(false);
+  };
+
+  const resetGame = () => {
+    setGameState('setup');
+    setStory('');
+    setImages([]);
+    setAiFeedback(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] text-slate-800 font-sans p-4 md:p-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <header className="flex items-center justify-between mb-10">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-orange-400 rounded-2xl text-white shadow-md">
+              <ImageIcon size={28} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">繪本說書人</h1>
+              <p className="text-sm text-slate-500 font-medium">由左至右，串連你的想像力</p>
+            </div>
+          </div>
+          {gameState !== 'setup' && (
+            <button 
+              onClick={resetGame}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2"
+            >
+              <RefreshCw size={16} /> 重新開始
+            </button>
+          )}
+        </header>
+
+        {/* Setup Screen */}
+        {gameState === 'setup' && (
+          <div className="max-w-xl mx-auto bg-white rounded-3xl shadow-sm border border-orange-100 p-8 animate-in fade-in zoom-in-95">
+            <h2 className="text-xl font-bold mb-8 flex items-center gap-2 text-orange-600">
+              <Settings size={22} /> 遊戲設定
+            </h2>
+            
+            <div className="space-y-10">
+              <div>
+                <div className="flex justify-between items-end mb-4">
+                  <label className="text-sm font-bold text-slate-700">圖卡數量</label>
+                  <span className="text-2xl font-black text-orange-500">{imageCount} <span className="text-sm text-slate-400 font-normal">張</span></span>
+                </div>
+                <input 
+                  type="range" min="3" max="6" step="1"
+                  value={imageCount} 
+                  onChange={(e) => setImageCount(parseInt(e.target.value))}
+                  className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-4">選擇風格主題</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTheme(t)}
+                      className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                        selectedTheme.id === t.id 
+                        ? 'border-orange-400 bg-orange-50 ring-4 ring-orange-50' 
+                        : 'border-slate-50 hover:border-slate-200 bg-slate-50/50'
+                      }`}
+                    >
+                      <div className={`font-bold ${selectedTheme.id === t.id ? 'text-orange-700' : 'text-slate-600'}`}>{t.name}</div>
+                      <div className="text-xs text-slate-400 mt-1">單純繪本風</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                onClick={startGame}
+                className="w-full py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-orange-100 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+              >
+                <Play size={24} fill="currentColor" /> 開始生成圖卡
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading Screen */}
+        {gameState === 'generating' && (
+          <div className="max-w-xl mx-auto flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm">
+            <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-6">
+              <Loader2 size={32} className="text-orange-500 animate-spin" />
+            </div>
+            <p className="text-xl font-bold text-slate-700">{loadingStep}</p>
+            <p className="text-sm text-slate-400 mt-2">正在繪製簡約、明亮的繪本靈感...</p>
+          </div>
+        )}
+
+        {/* Gameplay Screen */}
+        {(gameState === 'playing' || gameState === 'finished') && (
+          <div className="space-y-12 animate-in fade-in duration-500">
+            {/* Horizontal Images Scroll */}
+            <div className="relative group">
+              <div className="flex flex-row items-center justify-center gap-6 overflow-x-auto py-6 px-4 no-scrollbar snap-x">
+                {images.map((img, idx) => (
+                  <React.Fragment key={idx}>
+                    <div className="flex-shrink-0 w-48 md:w-56 lg:w-64 snap-center">
+                      <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative">
+                        <div className="aspect-square rounded-xl overflow-hidden bg-slate-50 border border-slate-50">
+                          <img src={img} alt={`Card ${idx + 1}`} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="absolute -top-3 -left-3 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-black text-lg shadow-lg border-4 border-[#FDFBF7]">
+                          {idx + 1}
+                        </div>
+                      </div>
+                    </div>
+                    {idx < images.length - 1 && (
+                      <ChevronRight className="flex-shrink-0 text-slate-200 hidden md:block" size={32} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+              <div className="text-center text-xs text-slate-400 font-medium uppercase tracking-widest mt-2">
+                故事進展方向 →
+              </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="max-w-3xl mx-auto">
+              {gameState === 'playing' ? (
+                <div className="bg-white rounded-3xl shadow-xl p-8 border border-orange-50">
+                  <div className="flex items-center gap-2 mb-6 text-slate-800">
+                    <BookOpen className="text-orange-500" size={24} />
+                    <h2 className="text-xl font-bold">請將上面的圖卡編成故事...</h2>
+                  </div>
+                  <textarea
+                    value={story}
+                    onChange={(e) => setStory(e.target.value)}
+                    placeholder="請順著圖卡的序號，寫下這幾個物件之間發生的故事..."
+                    className="w-full min-h-[250px] p-6 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-orange-200 focus:bg-white focus:ring-0 resize-none text-lg text-slate-700 leading-relaxed transition-all"
+                  />
+                  <div className="mt-6 flex items-center justify-between">
+                    <div className="text-sm text-slate-400 font-medium">
+                      故事長度：<span className="text-slate-600">{story.length}</span> 字
+                    </div>
+                    <button
+                      onClick={analyzeStory}
+                      disabled={story.length < 5 || isAnalyzing}
+                      className="px-10 py-4 bg-orange-500 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 disabled:opacity-30"
+                    >
+                      {isAnalyzing ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                      說完故事了
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl shadow-xl p-10 border border-orange-100 animate-in slide-in-from-bottom-8">
+                   <div className="text-center mb-10">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-xs font-black uppercase tracking-[0.2em] mb-4">
+                      <Sparkles size={14} /> AI 故事講評
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 mb-2">《{aiFeedback?.title}》</h2>
+                  </div>
+                  
+                  <div className="space-y-8">
+                    <div className="bg-orange-50/50 p-6 rounded-2xl border-l-4 border-orange-400 relative">
+                      <div className="text-orange-800 leading-relaxed text-lg italic">
+                        「{aiFeedback?.feedback}」
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">你的創作內容</h4>
+                      <div className="text-slate-700 whitespace-pre-wrap leading-loose text-xl font-serif border-t border-slate-50 pt-6">
+                        {story}
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={resetGame}
+                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl"
+                    >
+                      開啟新的故事篇章
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&display=swap');
+        .font-serif { font-family: 'Noto Serif TC', serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+    </div>
+  );
+};
+
+export default App;

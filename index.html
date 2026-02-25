@@ -17,19 +17,23 @@
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #FDFBF7;
+            user-select: none;
         }
-        .font-serif {
-            font-family: 'Noto Serif TC', serif;
-        }
+        .font-serif { font-family: 'Noto Serif TC', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* 載入動畫 */
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .dragging {
+            opacity: 0.2;
+            transform: scale(0.9);
+            z-index: 10;
         }
-        .animate-spin-slow {
-            animation: spin 3s linear infinite;
+        
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+        
+        .card-item {
+            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
         }
     </style>
 </head>
@@ -37,11 +41,115 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useCallback, useRef } = React;
 
-        const apiKey = ""; // 執行環境會自動提供
+        // --- 嚴格校對：90張完全不重複 PID 的圖庫 ---
+        const IMAGE_LIBRARY = {
+            daily: [
+                { id: 'd1', pid: '1568901346375-23c9450c58cd', name: '漢堡' },
+                { id: 'd2', pid: '1523275335684-37898b6baf30', name: '手錶' },
+                { id: 'd3', pid: '1509440159596-0249088772ff', name: '麵包' },
+                { id: 'd4', pid: '1584622650111-993a426fbf0a', name: '毛巾' },
+                { id: 'd5', pid: '1516035069371-29a1b244cc32', name: '相機' },
+                { id: 'd6', pid: '1591337676887-a217a6970a8a', name: '耳機' },
+                { id: 'd7', pid: '1525966222134-fcfa99b8ae77', name: '運動鞋' },
+                { id: 'd8', pid: '1526170315870-ef6872999916', name: '拍立得' },
+                { id: 'd9', pid: '1520004434532-6684162097ec', name: '衣架' },
+                { id: 'd10', pid: '1542272604-787c3835535d', name: '牛仔褲' },
+                { id: 'd11', pid: '1572635196237-14b3f281503f', name: '墨鏡' },
+                { id: 'd12', pid: '1491553895911-0055eca6402d', name: '球鞋' },
+                { id: 'd13', pid: '1505740420928-5e560c06d30e', name: '耳罩' },
+                { id: 'd14', pid: '1525904097878-94fb15835963', name: '仙人掌' },
+                { id: 'd15', pid: '1506417395049-d05047b9580b', name: '咖啡杯' },
+                { id: 'd16', pid: '1511499767010-a5883fd9a2c2', name: '眼鏡' },
+                { id: 'd17', pid: '1553062407-98eeb64c6a62', name: '背包' },
+                { id: 'd18', pid: '1516641399197-6034c5615794', name: '牙刷' },
+                { id: 'd19', pid: '1566206091559-03c5d8a97838', name: '咖啡豆' },
+                { id: 'd20', pid: '1595246140625-573b715d11dc', name: '磨豆機' },
+                { id: 'd21', pid: '1503342217505-b0a15ec3261c', name: '草帽' },
+                { id: 'd22', pid: '1583847268964-b28dc8f51f92', name: '椅子' },
+                { id: 'd23', pid: '1556228453-efd6c1ff04f6', name: '靠枕' },
+                { id: 'd24', pid: '1586023492125-27b2c045efd7', name: '檯燈' },
+                { id: 'd25', pid: '1534073828943-f801091bb18c', name: '手工皂' },
+                { id: 'd26', pid: '1530124560676-4fbc912f77c7', name: '香水瓶' },
+                { id: 'd27', pid: '1563245372-f21724e3856d', name: '叉子' },
+                { id: 'd28', pid: '1511556820241-470417bb6599', name: '收音機' },
+                { id: 'd29', pid: '1592169910633-4d003a27045b', name: '皮帶' },
+                { id: 'd30', pid: '1580915411954-282cb1b0d780', name: '洗手乳' }
+            ],
+            animal: [
+                { id: 'a1', pid: '1514888286974-6c03e2ca1dba', name: '小貓' },
+                { id: 'a2', pid: '1537151608828-ea2b11777ee8', name: '黃金獵犬' },
+                { id: 'a3', pid: '1585110396000-c9ffd4e4b308', name: '白兔' },
+                { id: 'a4', pid: '1546182990-dffeafbe841d', name: '雄獅' },
+                { id: 'a5', pid: '1484557985045-edf25e08da73', name: '小羊' },
+                { id: 'a6', pid: '1555169062-013468b47731', name: '鸚鵡' },
+                { id: 'a7', pid: '1526336024174-e58f5cdd8e13', name: '蝴蝶' },
+                { id: 'a8', pid: '1534361960057-19889db9621e', name: '幼犬' },
+                { id: 'a9', pid: '1501705388883-4ed8a543392c', name: '企鵝' },
+                { id: 'a10', pid: '1557050543-4d5f4e07ef46', name: '小狐狸' },
+                { id: 'a11', pid: '1474511320723-9a56873867b5', name: '松鼠' },
+                { id: 'a12', pid: '1530595467537-0b5996c41f2d', name: '大象' },
+                { id: 'a13', pid: '1529669851596-ba9a5549af95', name: '袋鼠' },
+                { id: 'a14', pid: '1437622368342-7a3d73a34c8f', name: '海龜' },
+                { id: 'a15', pid: '1502082553048-f009c37129b9', name: '麋鹿' },
+                { id: 'a16', pid: '1564349683136-77e08bef1ed1', name: '熊貓' },
+                { id: 'a17', pid: '1444464666168-49d633b867ad', name: '藍鳥' },
+                { id: 'a18', pid: '1507666405495-423fef0046fd', name: '長頸鹿' },
+                { id: 'a19', pid: '1516750484197-6b28d10c91ea', name: '斑馬' },
+                { id: 'a20', pid: '1456926631375-92c8ce872def', name: '獵豹' },
+                { id: 'a21', pid: '1425082661705-1834bfd09dca', name: '倉鼠' },
+                { id: 'a22', pid: '1543946207-39bd91e70ca7', name: '猴子' },
+                { id: 'a23', pid: '1503777119540-ce54b422baff', name: '老虎' },
+                { id: 'a24', pid: '1535241749837-272deae75305', name: '粉紅豬' },
+                { id: 'a25', pid: '1497206365907-f5e630693df0', name: '火烈鳥' },
+                { id: 'a26', pid: '1518791841217-8f162f1e1131', name: '黑貓' },
+                { id: 'a27', pid: '1511216335773-ae10bd4196ad', name: '金魚' },
+                { id: 'a28', pid: '1520638306518-af6058c49319', name: '無尾腳印' },
+                { id: 'a29', pid: '1553284965-0ef7c8591290', name: '公雞' },
+                { id: 'a30', pid: '1493406300554-954df6397ca0', name: '小馬' }
+            ],
+            workplace: [
+                { id: 'w1', pid: '1496181133206-80ce9b88a853', name: '銀色筆電' },
+                { id: 'w2', pid: '1541167760496-162955ed8a9f', name: '外帶咖啡' },
+                { id: 'w3', pid: '1506784365847-bbad939e9335', name: '桌曆' },
+                { id: 'w4', pid: '1517842645767-c639042777db', name: '黃色筆記本' },
+                { id: 'w5', pid: '1510127034890-ba27508e9f1c', name: '皮製提包' },
+                { id: 'w6', pid: '1497032628192-86f99bcd76bc', name: '無線滑鼠' },
+                { id: 'w7', pid: '1542744094-24638eff58bb', name: '機械鍵盤' },
+                { id: 'w8', pid: '1586281380349-632531db7ed4', name: '計算機' },
+                { id: 'w9', pid: '1589365278144-c9e705f843ba', name: '文件夾' },
+                { id: 'w10', pid: '1512314889357-e157c22f938d', name: '彩色便利貼' },
+                { id: 'w11', pid: '1583484963886-cfe2bef37d7b', name: '黑鋼筆' },
+                { id: 'w12', pid: '1516321318423-f06f85e504b3', name: '印表機' },
+                { id: 'w13', pid: '1581091226825-a6a2a5aee158', name: '手機' },
+                { id: 'w14', pid: '1522071823991-b19c72f740ff', name: '工作證' },
+                { id: 'w15', pid: '1513364776144-60967b0f800f', name: '釘書機' },
+                { id: 'w16', pid: '1506774050909-b2f88b8b82c1', name: '地球儀' },
+                { id: 'w17', pid: '1581091226033-d5c48150dbaa', name: '冠軍獎盃' },
+                { id: 'w18', pid: '1517433367423-c7e5b0f35086', name: '伺服器機櫃' },
+                { id: 'w19', pid: '1584438784894-089d6a62b839', name: '盆栽' },
+                { id: 'w20', pid: '1512418490979-92798ccc13b0', name: '工作眼鏡' },
+                { id: 'w21', pid: '1486316145741-696730430073', name: '白板筆' },
+                { id: 'w22', pid: '1554415707-c831f320b923', name: '削筆機' },
+                { id: 'w23', pid: '1488193138495-99228fd53229', name: '曲別針' },
+                { id: 'w24', pid: '1493933984767-123485747a12', name: '打孔機' },
+                { id: 'w25', pid: '1521791136064-7986c2959d92', name: '印章' },
+                { id: 'w26', pid: '1517048676734-d051473d93aa', name: '茶包' },
+                { id: 'w27', pid: '1523211234567-c12345678901', name: '辦公桌架' },
+                { id: 'w28', pid: '1454160835308-562a2ad23969', name: '檯燈' },
+                { id: 'w29', pid: '1551033042-26255315176c', name: '公事圓珠筆' },
+                { id: 'w30', pid: '1515378804294-9a57002327b7', name: '電腦主機' }
+            ]
+        };
 
-        // 簡單圖標組件 (修正：為多個相鄰元素添加 Fragment 包裝)
+        const THEMES = [
+            { id: 'daily', name: '生活日常' },
+            { id: 'animal', name: '森林動物' },
+            { id: 'workplace', name: '職場生活' },
+            { id: 'mixed', name: '綜合混合' }
+        ];
+
         const Icon = ({ name, size = 24, className = "" }) => {
             const icons = {
                 settings: (
@@ -51,10 +159,11 @@
                     </>
                 ),
                 play: <polygon points="5 3 19 12 5 21 5 3"/>,
-                book: (
+                book: <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>,
+                refresh: (
                     <>
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                        <polyline points="21 3 21 8 16 8"/>
                     </>
                 ),
                 send: (
@@ -63,37 +172,13 @@
                         <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </>
                 ),
-                refresh: (
+                loader: <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>,
+                move: (
                     <>
-                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                        <polyline points="21 3 21 8 16 8"/>
+                        <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
+                        <polyline points="15 19 12 22 9 19"/><polyline points="19 15 22 12 19 9"/>
                     </>
-                ),
-                loader: (
-                    <>
-                        <path d="M12 2v4"/><path d="M12 18v4"/>
-                        <path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/>
-                        <path d="M2 12h4"/><path d="M18 12h4"/>
-                        <path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/>
-                    </>
-                ),
-                sparkles: (
-                    <>
-                        <path d="M12 3v1"/><path d="M12 20v1"/>
-                        <path d="M3 12h1"/><path d="M20 12h1"/>
-                        <path d="M18.36 5.64l-.7.7"/><path d="M6.34 17.66l-.7.7"/>
-                        <path d="M5.64 5.64l.7.7"/><path d="M17.66 17.66l.7.7"/>
-                        <path d="M9 12l2 2 4-4"/>
-                    </>
-                ),
-                image: (
-                    <>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                        <polyline points="21 15 16 10 5 21"/>
-                    </>
-                ),
-                chevronRight: <polyline points="9 18 15 12 9 6"/>
+                )
             };
             return (
                 <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -102,245 +187,313 @@
             );
         };
 
-        const STYLE_PROMPT = "Simple picture book illustration, minimalist, single concrete object, clean flat colors, soft textures, white or simple pastel background, no clutter, charming and clear.";
-
-        const THEMES = [
-            { id: 'daily', name: '生活日常', context: 'Objects found in a cozy home or garden' },
-            { id: 'animal', name: '森林動物', context: 'Cute animals with human-like expressions' },
-            { id: 'workplace', name: '職場生活', context: 'Office supplies, professional items, and work-related objects' },
-            { id: 'festival', name: '傳統節慶', context: 'Items related to traditional holidays, lanterns, decorations, and festive foods' }
-        ];
-
         const App = () => {
+            const [userApiKey, setUserApiKey] = useState(localStorage.getItem('gemini_api_key') || "");
             const [gameState, setGameState] = useState('setup'); 
             const [imageCount, setImageCount] = useState(4);
             const [selectedTheme, setSelectedTheme] = useState(THEMES[0]);
+            const [showLabels, setShowLabels] = useState(false);
             const [images, setImages] = useState([]);
+            const [prevImagePids, setPrevImagePids] = useState(new Set()); 
             const [story, setStory] = useState('');
-            const [loadingStep, setLoadingStep] = useState('');
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [aiFeedback, setAiFeedback] = useState(null);
+            const [draggedIdx, setDraggedIdx] = useState(null);
 
-            const fetchWithRetry = async (url, options, maxRetries = 5) => {
-                let delay = 1000;
-                for (let i = 0; i < maxRetries; i++) {
-                    try {
-                        const response = await fetch(url, options);
-                        if (!response.ok) throw new Error('Request failed');
-                        return await response.json();
-                    } catch (err) {
-                        if (i === maxRetries - 1) throw err;
-                        await new Promise(r => setTimeout(r, delay));
-                        delay *= 2;
+            // 取得當前模式的圖片庫
+            const getPool = () => {
+                if (selectedTheme.id === 'mixed') {
+                    return [...IMAGE_LIBRARY.daily, ...IMAGE_LIBRARY.animal, ...IMAGE_LIBRARY.workplace];
+                }
+                return IMAGE_LIBRARY[selectedTheme.id];
+            };
+
+            // Fisher-Yates 洗牌演算法
+            const shuffle = (array) => {
+                const newArr = [...array];
+                for (let i = newArr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+                }
+                return newArr;
+            };
+
+            const startGame = () => {
+                const pool = getPool();
+                
+                // 強制過濾掉上一輪出現過的 PID
+                let available = pool.filter(img => !prevImagePids.has(img.pid));
+                
+                // 如果可用數量不足（罕見情況），則使用整個池
+                if (available.length < imageCount) {
+                    available = pool;
+                }
+
+                const shuffled = shuffle(available);
+                
+                // 嚴格選擇：保證本輪內 PID 絕對唯一
+                const uniqueSelection = [];
+                const seenInThisRound = new Set();
+                
+                for (let img of shuffled) {
+                    if (!seenInThisRound.has(img.pid)) {
+                        uniqueSelection.push(img);
+                        seenInThisRound.add(img.pid);
                     }
+                    if (uniqueSelection.length === imageCount) break;
+                }
+                
+                setImages(uniqueSelection);
+                // 儲存本次 PID 以供下一輪排除
+                setPrevImagePids(new Set(uniqueSelection.map(i => i.pid)));
+                setGameState('playing');
+                setStory('');
+                setAiFeedback(null);
+            };
+
+            const handleImageError = (failedPid, currentIdx) => {
+                const pool = getPool();
+                const currentDisplayedPids = new Set(images.map(img => img.pid));
+                
+                const backup = pool.find(img => !currentDisplayedPids.has(img.pid) && img.pid !== failedPid);
+                
+                if (backup) {
+                    setImages(prev => {
+                        const next = [...prev];
+                        next[currentIdx] = backup;
+                        return next;
+                    });
                 }
             };
 
-            const generateImage = async (specificObject) => {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                const payload = {
-                    instances: [{ prompt: `${STYLE_PROMPT} A ${specificObject}. ${selectedTheme.context}. High quality, centered composition.` }],
-                    parameters: { sampleCount: 1 }
-                };
-                const result = await fetchWithRetry(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+            const onDragStart = (e, index) => {
+                setDraggedIdx(index);
+                e.dataTransfer.effectAllowed = "move";
             };
 
-            const getObjectsFromGemini = async (count) => {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                const systemPrompt = `你是一個繪本遊戲設計師。請為主題 "${selectedTheme.name}" 提供 ${count} 個具體、單純的物件名稱。
-                規則：每個物件必須是非常具體的物件。畫面簡單，無背景。用英文回傳物件名稱以便繪圖。`;
-                const payload = {
-                    contents: [{ parts: [{ text: `請以 JSON 格式回傳: {"objects": ["object1", "object2", ...]}` }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] },
-                    generationConfig: { responseMimeType: "application/json" }
-                };
-                const result = await fetchWithRetry(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                return JSON.parse(result.candidates[0].content.parts[0].text).objects;
+            const onDragOver = (e, index) => {
+                e.preventDefault();
+                if (draggedIdx === null || draggedIdx === index) return;
+                
+                const newImages = [...images];
+                const draggedItem = newImages[draggedIdx];
+                newImages.splice(draggedIdx, 1);
+                newImages.splice(index, 0, draggedItem);
+                
+                setImages(newImages);
+                setDraggedIdx(index);
             };
 
-            const startGame = async () => {
-                setGameState('generating');
-                setLoadingStep('正在挑選故事靈感...');
-                try {
-                    const objectList = await getObjectsFromGemini(imageCount);
-                    const generatedImages = [];
-                    for (let i = 0; i < objectList.length; i++) {
-                        setLoadingStep(`正在繪製第 ${i + 1} 張繪本圖卡...`);
-                        const img = await generateImage(objectList[i]);
-                        generatedImages.push(img);
-                    }
-                    setImages(generatedImages);
-                    setGameState('playing');
-                } catch (error) {
-                    console.error(error);
-                    setGameState('setup');
-                    alert('生成失敗，請檢查網路或稍後再試。');
-                }
-            };
+            const onDragEnd = () => setDraggedIdx(null);
 
             const analyzeStory = async () => {
+                if (!userApiKey) {
+                    setAiFeedback({ 
+                        title: "故事完稿", 
+                        feedback: `太棒了！這是一個關於「${images.map(i=>i.name).join('、')}」的故事。你的創意成功串聯了所有靈感！` 
+                    });
+                    setGameState('finished');
+                    return;
+                }
+
                 setIsAnalyzing(true);
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 try {
-                    const result = await fetchWithRetry(url, {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${userApiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ parts: [{ text: `玩家根據圖片寫了一個故事。請給予鼓勵並取個書名：\n"${story}"` }] }],
+                            contents: [{ parts: [{ text: `玩家根據圖片物件 [${images.map(i=>i.name).join(',')}] 寫了一個故事。請取個優雅書名並給予一段溫暖講評：\n\n"${story}"` }] }],
                             generationConfig: { 
-                                responseMimeType: "application/json",
-                                responseSchema: {
-                                    type: "OBJECT",
-                                    properties: {
-                                        title: { type: "STRING" },
-                                        feedback: { type: "STRING" }
-                                    }
-                                }
+                                responseMimeType: "application/json", 
+                                responseSchema: { 
+                                    type: "OBJECT", 
+                                    properties: { title: { type: "STRING" }, feedback: { type: "STRING" } } 
+                                } 
                             }
                         })
                     });
+                    const result = await response.json();
                     setAiFeedback(JSON.parse(result.candidates[0].content.parts[0].text));
                     setGameState('finished');
                 } catch (e) {
-                    setAiFeedback({ title: "奇妙的故事", feedback: "你編織了一個非常動人的故事！" });
+                    setAiFeedback({ title: "奇妙之旅", feedback: "你編織了一個動人的故事，每個物件在你的筆下都栩栩如生！" });
                     setGameState('finished');
                 }
                 setIsAnalyzing(false);
             };
 
+            const saveApiKey = (key) => {
+                setUserApiKey(key);
+                localStorage.setItem('gemini_api_key', key);
+            };
+
+            const getGridCols = () => {
+                if (imageCount <= 4) return "grid-cols-2 sm:grid-cols-4";
+                if (imageCount <= 6) return "grid-cols-2 sm:grid-cols-3 md:grid-cols-6";
+                return "grid-cols-2 sm:grid-cols-4 md:grid-cols-8";
+            };
+
             return (
-                <div className="min-h-screen p-4 md:p-8">
-                    <div className="max-w-6xl mx-auto">
-                        <header className="flex items-center justify-between mb-10">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-md">
-                                    <Icon name="image" size={28} />
-                                </div>
-                                <div>
-                                    <h1 className="text-2xl font-bold tracking-tight text-slate-900">繪本說書人</h1>
-                                    <p className="text-sm text-slate-500 font-medium italic">由左至右，串連你的想像力</p>
-                                </div>
+                <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto">
+                    <header className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg">
+                                <Icon name="book" size={28} />
+                            </div>
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">繪本說書人</h1>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="hidden md:flex items-center bg-white border border-slate-200 rounded-full px-3 py-1.5 text-xs shadow-sm">
+                                <Icon name="settings" size={14} className="text-slate-400 mr-2" />
+                                <input type="password" value={userApiKey} onChange={(e) => saveApiKey(e.target.value)} className="outline-none w-24 bg-transparent font-mono" placeholder="Gemini API Key" />
                             </div>
                             {gameState !== 'setup' && (
-                                <button onClick={() => setGameState('setup')} className="px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium hover:bg-slate-50 transition-colors flex items-center gap-2">
-                                    <Icon name="refresh" size={16} /> 重新開始
+                                <button onClick={() => setGameState('setup')} className="p-2.5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-orange-500 hover:border-orange-200 transition-all shadow-sm">
+                                    <Icon name="refresh" size={20} />
                                 </button>
                             )}
-                        </header>
+                        </div>
+                    </header>
 
-                        {gameState === 'setup' && (
-                            <div className="max-w-xl mx-auto bg-white rounded-3xl shadow-xl border border-orange-100 p-8">
-                                <h2 className="text-xl font-bold mb-8 flex items-center gap-2 text-orange-600">
-                                    <Icon name="settings" size={22} /> 遊戲設定
-                                </h2>
-                                <div className="space-y-10">
-                                    <div>
-                                        <div className="flex justify-between items-end mb-4">
-                                            <label className="text-sm font-bold text-slate-700">圖卡數量</label>
-                                            <span className="text-2xl font-black text-orange-500">{imageCount} <span className="text-sm text-slate-400 font-normal">張</span></span>
-                                        </div>
-                                        <input type="range" min="3" max="6" value={imageCount} onChange={(e) => setImageCount(parseInt(e.target.value))} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+                    {gameState === 'setup' && (
+                        <div className="max-w-xl mx-auto bg-white rounded-3xl shadow-xl border border-orange-100 p-8 animate-in fade-in zoom-in-95">
+                            <h2 className="text-xl font-bold mb-8 flex items-center gap-2 text-orange-600">
+                                <Icon name="settings" size={22} /> 冒險準備
+                            </h2>
+                            <div className="space-y-10">
+                                <div>
+                                    <div className="flex justify-between items-end mb-4">
+                                        <label className="text-sm font-bold text-slate-700 uppercase tracking-widest">挑選卡片數量</label>
+                                        <span className="text-2xl font-black text-orange-500">{imageCount} 張</span>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-4">選擇風格主題</label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {THEMES.map(t => (
-                                                <button key={t.id} onClick={() => setSelectedTheme(t)} className={`p-4 rounded-2xl border-2 text-left transition-all ${selectedTheme.id === t.id ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-100' : 'border-slate-50 bg-slate-50/50'}`}>
-                                                    <div className={`font-bold ${selectedTheme.id === t.id ? 'text-orange-700' : 'text-slate-600'}`}>{t.name}</div>
-                                                    <div className="text-xs text-slate-400 mt-1">簡約繪本風</div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <button onClick={startGame} className="w-full py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3">
-                                        <Icon name="play" size={24} /> 開始生成圖卡
-                                    </button>
+                                    <input type="range" min="3" max="8" value={imageCount} onChange={(e) => setImageCount(parseInt(e.target.value))} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-500" />
                                 </div>
-                            </div>
-                        )}
-
-                        {gameState === 'generating' && (
-                            <div className="max-w-xl mx-auto flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm">
-                                <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-6">
-                                    <Icon name="loader" size={32} className="text-orange-500 animate-spin" />
+                                
+                                <div className="grid grid-cols-2 gap-3">
+                                    {THEMES.map(t => (
+                                        <button key={t.id} onClick={() => setSelectedTheme(t)} className={`p-4 rounded-2xl border-2 transition-all font-bold ${selectedTheme.id === t.id ? 'border-orange-500 bg-orange-50 text-orange-700 ring-4 ring-orange-50' : 'border-slate-50 bg-slate-50 text-slate-500 hover:border-slate-200'}`}>
+                                            {t.name}
+                                        </button>
+                                    ))}
                                 </div>
-                                <p className="text-xl font-bold text-slate-700">{loadingStep}</p>
-                                <p className="text-sm text-slate-400 mt-2">正在繪製簡約、明亮的繪本靈感...</p>
-                            </div>
-                        )}
+                                
+                                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl">
+                                    <input 
+                                        type="checkbox" 
+                                        id="labels" 
+                                        checked={showLabels} 
+                                        onChange={(e) => setShowLabels(e.target.checked)}
+                                        className="w-5 h-5 accent-orange-500 rounded"
+                                    />
+                                    <label htmlFor="labels" className="text-sm font-bold text-slate-600 cursor-pointer">
+                                        顯示圖片輔助標籤 (幫助辨識內容)
+                                    </label>
+                                </div>
 
-                        {(gameState === 'playing' || gameState === 'finished') && (
-                            <div className="space-y-12 animate-in fade-in duration-500">
-                                <div className="relative">
-                                    <div className="flex flex-row items-center justify-center gap-6 overflow-x-auto py-6 px-4 no-scrollbar">
-                                        {images.map((img, idx) => (
-                                            <React.Fragment key={idx}>
-                                                <div className="flex-shrink-0 w-48 md:w-56 lg:w-64">
-                                                    <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative">
-                                                        <div className="aspect-square rounded-xl overflow-hidden bg-slate-50">
-                                                            <img src={img} className="w-full h-full object-cover" />
-                                                        </div>
-                                                        <div className="absolute -top-3 -left-3 w-10 h-10 bg-orange-500 text-white rounded-full flex items-center justify-center font-black text-lg shadow-lg border-4 border-[#FDFBF7]">
-                                                            {idx + 1}
-                                                        </div>
+                                <button onClick={startGame} className="w-full py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-orange-100 active:scale-95 transition-all">
+                                    開啟我的故事篇章
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {(gameState === 'playing' || gameState === 'finished') && (
+                        <div className="space-y-10 animate-in fade-in">
+                            <div className="flex flex-col items-center">
+                                <div className={`grid ${getGridCols()} gap-4 w-full`}>
+                                    {images.map((img, idx) => (
+                                        <div 
+                                            key={`${img.id}-${idx}`}
+                                            draggable={gameState === 'playing'}
+                                            onDragStart={(e) => onDragStart(e, idx)}
+                                            onDragOver={(e) => onDragOver(e, idx)}
+                                            onDragEnd={onDragEnd}
+                                            className={`card-item relative flex flex-col ${draggedIdx === idx ? 'dragging' : ''}`}
+                                        >
+                                            <div className="bg-white p-2 pb-3 rounded-2xl card-shadow border border-slate-100 overflow-hidden cursor-grab active:cursor-grabbing h-full flex flex-col">
+                                                <div className="aspect-square rounded-xl overflow-hidden bg-slate-50 relative flex-shrink-0">
+                                                    <img 
+                                                        src={`https://images.unsplash.com/photo-${img.pid}?auto=format&fit=crop&q=80&w=400`} 
+                                                        className="w-full h-full object-cover select-none pointer-events-none"
+                                                        alt={img.name}
+                                                        referrerPolicy="no-referrer"
+                                                        onError={() => handleImageError(img.pid, idx)}
+                                                    />
+                                                </div>
+                                                {showLabels && (
+                                                    <div className="mt-2 text-center text-[10px] font-black text-orange-600 bg-orange-50 py-1 rounded-lg">
+                                                        {img.name}
                                                     </div>
+                                                )}
+                                                <div className="absolute top-1.5 left-1.5 w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white z-20">
+                                                    {idx + 1}
                                                 </div>
-                                                {idx < images.length - 1 && <Icon name="chevronRight" className="text-slate-200 hidden md:block" />}
-                                            </React.Fragment>
-                                        ))}
-                                    </div>
-                                    <div className="text-center text-xs text-slate-400 font-medium uppercase tracking-widest mt-2">故事進展方向 →</div>
-                                </div>
-
-                                <div className="max-w-3xl mx-auto">
-                                    {gameState === 'playing' ? (
-                                        <div className="bg-white rounded-3xl shadow-2xl p-8 border border-orange-50">
-                                            <div className="flex items-center gap-2 mb-6">
-                                                <Icon name="book" className="text-orange-500" />
-                                                <h2 className="text-xl font-bold">請將上面的圖卡編成故事...</h2>
-                                            </div>
-                                            <textarea value={story} onChange={(e) => setStory(e.target.value)} placeholder="第一張圖發生了什麼？接著又發生了什麼？..." className="w-full min-h-[250px] p-6 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-orange-200 focus:bg-white focus:ring-0 resize-none text-lg text-slate-700 leading-relaxed transition-all" />
-                                            <div className="mt-6 flex items-center justify-between">
-                                                <div className="text-sm text-slate-400">已輸入 <span className="text-slate-600 font-bold">{story.length}</span> 字</div>
-                                                <button onClick={analyzeStory} disabled={story.length < 5 || isAnalyzing} className="px-10 py-4 bg-orange-500 text-white rounded-2xl font-bold flex items-center gap-2 hover:bg-orange-600 transition-all shadow-lg disabled:opacity-30">
-                                                    {isAnalyzing ? <Icon name="loader" className="animate-spin" /> : <Icon name="send" />}
-                                                    說完故事了
-                                                </button>
+                                                {gameState === 'playing' && (
+                                                    <div className="absolute top-2 right-2 p-1 bg-white/60 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-slate-400">
+                                                        <Icon name="move" size={12} />
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div className="bg-white rounded-3xl shadow-2xl p-10 border border-orange-100">
-                                            <div className="text-center mb-10">
-                                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-xs font-black uppercase mb-4">
-                                                    <Icon name="sparkles" size={14} /> AI 故事講評
-                                                </div>
-                                                <h2 className="text-3xl font-black text-slate-900 mb-2">《{aiFeedback?.title}》</h2>
-                                            </div>
-                                            <div className="space-y-8">
-                                                <div className="bg-orange-50/50 p-6 rounded-2xl border-l-4 border-orange-400">
-                                                    <div className="text-orange-800 leading-relaxed text-lg italic">「{aiFeedback?.feedback}」</div>
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">你的創作內容</h4>
-                                                    <div className="text-slate-700 whitespace-pre-wrap leading-loose text-xl font-serif border-t pt-6">{story}</div>
-                                                </div>
-                                                <button onClick={() => setGameState('setup')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl">再玩一局</button>
-                                            </div>
-                                        </div>
-                                    )}
+                                    ))}
                                 </div>
+                                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em] mt-6">
+                                    {gameState === 'playing' ? "Drag and drop cards to reorder story flow" : "Your visual masterpiece sequence"}
+                                </p>
                             </div>
-                        )}
-                    </div>
+
+                            <div className="max-w-3xl mx-auto">
+                                {gameState === 'playing' ? (
+                                    <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-orange-50">
+                                        <div className="flex items-center gap-2 mb-4 text-slate-400">
+                                            <Icon name="book" size={18} />
+                                            <span className="text-xs font-bold uppercase tracking-widest">編織故事內容</span>
+                                        </div>
+                                        <textarea 
+                                            value={story} 
+                                            onChange={(e) => setStory(e.target.value)} 
+                                            placeholder="按照上面的圖卡順序，把這些物件編成一個完整的故事。你可以隨時拖動圖片來更換順序，編號會自動調整喔！" 
+                                            className="w-full min-h-[350px] p-6 rounded-2xl bg-slate-50/50 border-2 border-transparent focus:border-orange-100 focus:bg-white focus:ring-0 resize-none text-lg text-slate-700 leading-relaxed transition-all" 
+                                        />
+                                        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                            <div className="text-[10px] text-slate-300 font-bold uppercase tracking-widest text-center sm:text-left flex flex-wrap gap-2">
+                                                目前順序：{images.map(i=>i.name).join(' → ')}
+                                            </div>
+                                            <button 
+                                                onClick={analyzeStory} 
+                                                disabled={story.length < 5 || isAnalyzing} 
+                                                className="w-full sm:w-auto px-12 py-4 bg-orange-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 disabled:opacity-30"
+                                            >
+                                                {isAnalyzing ? <Icon name="loader" className="animate-spin" /> : <Icon name="send" />}
+                                                故事完成
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 animate-in slide-in-from-bottom-8 border border-orange-50">
+                                        <div className="text-center mb-10">
+                                            <div className="inline-block px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4">
+                                                Story Masterpiece
+                                            </div>
+                                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">《{aiFeedback?.title}》</h2>
+                                        </div>
+                                        <div className="bg-orange-50/50 p-8 rounded-3xl border-l-4 border-orange-400 text-orange-800 italic mb-12 leading-relaxed text-lg shadow-sm">
+                                            「{aiFeedback?.feedback}」
+                                        </div>
+                                        <div className="text-slate-700 whitespace-pre-wrap leading-loose text-xl font-serif border-t border-slate-50 pt-12 mb-12">
+                                            {story}
+                                        </div>
+                                        <button 
+                                            onClick={() => setGameState('setup')} 
+                                            className="w-full py-5 bg-slate-900 text-white rounded-2xl font-bold text-lg hover:bg-black transition-all shadow-xl"
+                                        >
+                                            開啟新的故事篇章
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };

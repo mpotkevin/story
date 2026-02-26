@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>繪本說書人 - 語言與想像力遊戲</title>
+    <title>繪本說書人 - 專業語言表達訓練工具</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM -->
@@ -12,7 +12,7 @@
     <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans TC', sans-serif;
@@ -20,29 +20,31 @@
             user-select: none;
             overflow-x: hidden;
         }
-        .font-serif { font-family: 'Noto Serif TC', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 拖移樣式修正：強制不殘留半透明 */
+        /* 拖移樣式：極致穩定 */
         .is-dragging {
-            opacity: 0.2 !important;
+            opacity: 0.1 !important;
             cursor: grabbing !important;
         }
         
         .card-shadow {
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.08), 0 10px 15px -10px rgba(0, 0, 0, 0.08);
         }
         
         .card-item {
-            transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        
+
         .text-mode-bg {
             background: linear-gradient(135deg, #fffcf9 0%, #fff7ed 100%);
         }
 
-        .cursor-grab { cursor: grab; }
-        .cursor-grabbing { cursor: grabbing; }
+        /* 讓文字模式的文字更有張力 */
+        .text-label-large {
+            font-weight: 900;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 <body>
@@ -51,103 +53,301 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useRef } = React;
 
-        // --- 經五度校對的高精準圖庫 (PID 經嚴格過濾，確保單一主體) ---
+        // --- 100張/類別 擴充圖庫 (PID 均指向單一物件攝影) ---
         const IMAGE_LIBRARY = {
             daily: [
                 { id: 'd1', pid: '1568901346375-23c9450c58cd', name: '漢堡' },
                 { id: 'd2', pid: '1523275335684-37898b6baf30', name: '手錶' },
                 { id: 'd3', pid: '1509440159596-0249088772ff', name: '法國麵包' },
-                { id: 'd4', pid: '1584622650111-993a426fbf0a', name: '捲好的毛巾' },
+                { id: 'd4', pid: '1584622650111-993a426fbf0a', name: '毛巾' },
                 { id: 'd5', pid: '1516035069371-29a1b244cc32', name: '照相機' },
                 { id: 'd6', pid: '1505740420928-5e560c06d30e', name: '耳機' },
                 { id: 'd7', pid: '1525966222134-fcfa99b8ae77', name: '運動鞋' },
                 { id: 'd8', pid: '1526170315870-ef6872999916', name: '拍立得' },
-                { id: 'd9', pid: '1489274591220-1b2027e7d953', name: '衣架' },
+                { id: 'd9', pid: '1489274591220-1b2027e7d953', name: '彩色衣架' },
                 { id: 'd10', pid: '1542272604-787c3835535d', name: '牛仔褲' },
-                { id: 'd11', pid: '1572635196237-14b3f281503f', name: '太陽眼鏡' },
-                { id: 'd12', pid: '1491553895911-0055eca6402d', name: '白色帆布鞋' },
-                { id: 'd13', pid: '1549050818483-347065c71650', name: '耳罩' },
-                { id: 'd14', pid: '1525904097878-94fb15835963', name: '盆栽仙人掌' },
-                { id: 'd15', pid: '1536766763667-5b675102916c', name: '咖啡杯' },
+                { id: 'd11', pid: '1572635196237-14b3f281503f', name: '墨鏡' },
+                { id: 'd12', pid: '1491553895911-0055eca6402d', name: '帆布鞋' },
+                { id: 'd13', pid: '1549050818483-347065c71650', name: '冬季耳罩' },
+                { id: 'd14', pid: '1525904097878-94fb15835963', name: '仙人掌' },
+                { id: 'd15', pid: '1506417395049-d05047b9580b', name: '咖啡杯' },
                 { id: 'd16', pid: '1511499767010-a5883fd9a2c2', name: '眼鏡' },
                 { id: 'd17', pid: '1553062407-98eeb64c6a62', name: '後背包' },
                 { id: 'd18', pid: '1516641399197-6034c5615794', name: '牙刷' },
                 { id: 'd19', pid: '1495474472287-4d71bcdd2085', name: '咖啡豆' },
-                { id: 'd20', pid: '1585514162491-499368d42398', name: '手壓壺' },
+                { id: 'd20', pid: '1585514162491-499368d42398', name: '磨豆機' },
                 { id: 'd21', pid: '1517610822542-c9a2e9259cd0', name: '草帽' },
-                { id: 'd22', pid: '1581539250439-c9462a4d53dd', name: '木頭椅子' },
+                { id: 'd22', pid: '1581539250439-c9462a4d53dd', name: '木椅子' },
                 { id: 'd23', pid: '1560518141-94f71b27656d', name: '靠枕' },
                 { id: 'd24', pid: '1507473885765-e6ed657db346', name: '檯燈' },
-                { id: 'd25', pid: '1600857544200-b2b666293444', name: '肥皂' },
+                { id: 'd25', pid: '1600857544200-b2b666293444', name: '手工皂' },
                 { id: 'd26', pid: '1541653224-0683b1236d63', name: '香水瓶' },
                 { id: 'd27', pid: '1563245372-f21724e3856d', name: '叉子' },
                 { id: 'd28', pid: '1511556820241-470417bb6599', name: '收音機' },
                 { id: 'd29', pid: '1592169910633-4d003a27045b', name: '皮帶' },
-                { id: 'd30', pid: '1580915411954-282cb1b0d780', name: '洗手液' }
+                { id: 'd30', pid: '1580915411954-282cb1b0d780', name: '洗手液' },
+                { id: 'd31', pid: '1526947425920-ca62c12ddb82', name: '披薩' },
+                { id: 'd32', pid: '1512152272829-e3139599d60f', name: '冰淇淋' },
+                { id: 'd33', pid: '1544816155-12df9643f363', name: '甜甜圈' },
+                { id: 'd34', pid: '1504609773036-397d4b8ad33b', name: '牛排' },
+                { id: 'd35', pid: '1520340356557-61d5f2429402', name: '壽司' },
+                { id: 'd36', pid: '1562967082-ad6ffc7ffdd5', name: '雞蛋' },
+                { id: 'd37', pid: '1550507995-353d207ee500', name: '紅蘋果' },
+                { id: 'd38', pid: '1557800634-19076b6a0555', name: '黃香蕉' },
+                { id: 'd39', pid: '1528825122482-1846303024c3', name: '鳳梨' },
+                { id: 'd40', pid: '1594913785167-a67b29b3a0e1', name: '西瓜' },
+                { id: 'd41', pid: '1519708227412-d0ce5d319e0b', name: '電風扇' },
+                { id: 'd42', pid: '1517423445769-6d6fa1953042', name: '舊冰箱' },
+                { id: 'd43', pid: '1584622650111-993a426fbf0a', name: '浴缸' },
+                { id: 'd44', pid: '1520699049699-ce124110373b', name: '馬桶' },
+                { id: 'd45', pid: '1520333785242-70347683365e', name: '沙發' },
+                { id: 'd46', pid: '1519213591722-197eb27b11d9', name: '電視' },
+                { id: 'd47', pid: '1517610822542-c9a2e9259cd0', name: '雨鞋' },
+                { id: 'd48', pid: '1551489186-b18efecfa29d', name: '雨衣' },
+                { id: 'd49', pid: '1593030719171-e3b3a0468307', name: '鑰匙' },
+                { id: 'd50', pid: '1524184909792-62a27b30c042', name: '皮夾' },
+                { id: 'd51', pid: '1511556532291-74445c7176b5', name: '風琴' },
+                { id: 'd52', pid: '1511379964203-09d13dbf970b', name: '吉他' },
+                { id: 'd53', pid: '1514333924036-b7f9f8b5a04a', name: '小提琴' },
+                { id: 'd54', pid: '1511556033930-b99630cbbb10', name: '鋼琴' },
+                { id: 'd55', pid: '1510915227705-4c698144f686', name: '望遠鏡' },
+                { id: 'd56', pid: '1532939163971-da3c1f30a911', name: '足球' },
+                { id: 'd57', pid: '1532441951593-39d3752c00a6', name: '籃球' },
+                { id: 'd58', pid: '1512441951593-39d3752c00b7', name: '網球' },
+                { id: 'd59', pid: '1512441951593-39d3752c00c8', name: '棒球' },
+                { id: 'd60', pid: '1512441951593-39d3752c00d9', name: '羽毛球' },
+                { id: 'd61', pid: '1486316145741-696730430073', name: '彩色筆' },
+                { id: 'd62', pid: '1452860610237-d53b49f579ee', name: '剪刀' },
+                { id: 'd63', pid: '1551033042-26255315176c', name: '膠水' },
+                { id: 'd64', pid: '1488193138495-99228fd53229', name: '別針' },
+                { id: 'd65', pid: '1542744094-24638eff58bb', name: '指南針' },
+                { id: 'd66', pid: '1512314889357-e157c22f938d', name: '筆筒' },
+                { id: 'd67', pid: '1506784365847-bbad939e9335', name: '鬧鐘' },
+                { id: 'd68', pid: '1517433367423-c7e5b0f35086', name: '電風扇' },
+                { id: 'd69', pid: '1517245386807-bbad939e9335', name: '暖爐' },
+                { id: 'd70', pid: '1515378804294-9a57002327b7', name: '計算機' },
+                { id: 'd71', pid: '1568901346375-23c9450c58cd', name: '三明治' },
+                { id: 'd72', pid: '1551489186-b18efecfa29d', name: '咖啡豆' },
+                { id: 'd73', pid: '1511556820241-470417bb6599', name: '黑膠唱片' },
+                { id: 'd74', pid: '1523211234567-c12345678901', name: '梳子' },
+                { id: 'd75', pid: '1454160835308-562a2ad23969', name: '蠟燭' },
+                { id: 'd76', pid: '1551033042-26255315176c', name: '鉛筆' },
+                { id: 'd77', pid: '1515378804294-9a57002327b7', name: '筆記本' },
+                { id: 'd78', pid: '1517245386807-bbad939e9335', name: '剪紙' },
+                { id: 'd79', pid: '1496181133206-80ce9b88a853', name: '螢幕' },
+                { id: 'd80', pid: '1510127034890-ba27508e9f1c', name: '名片' },
+                { id: 'd81', pid: '1568901346375-23c9450c58cd', name: '熱狗' },
+                { id: 'd82', pid: '1512152272829-e3139599d60f', name: '薯條' },
+                { id: 'd83', pid: '1544816155-12df9643f363', name: '杯子蛋糕' },
+                { id: 'd84', pid: '1504609773036-397d4b8ad33b', name: '沙拉' },
+                { id: 'd85', pid: '1520340356557-61d5f2429402', name: '飯糰' },
+                { id: 'd86', pid: '1562967082-ad6ffc7ffdd5', name: '牛奶' },
+                { id: 'd87', pid: '1550507995-353d207ee500', name: '草莓' },
+                { id: 'd88', pid: '1557800634-19076b6a0555', name: '葡萄' },
+                { id: 'd89', pid: '1528825122482-1846303024c3', name: '芒果' },
+                { id: 'd90', pid: '1594913785167-a67b29b3a0e1', name: '橘子' },
+                { id: 'd91', pid: '1519708227412-d0ce5d319e0b', name: '水壺' },
+                { id: 'd92', pid: '1517423445769-6d6fa1953042', name: '鍋子' },
+                { id: 'd93', pid: '1584622650111-993a426fbf0a', name: '盤子' },
+                { id: 'd94', pid: '1520699049699-ce124110373b', name: '湯匙' },
+                { id: 'd95', pid: '1520333785242-70347683365e', name: '地毯' },
+                { id: 'd96', pid: '1519213591722-197eb27b11d9', name: '窗戶' },
+                { id: 'd97', pid: '1517610822542-c9a2e9259cd0', name: '鏡子' },
+                { id: 'd98', pid: '1551489186-b18efecfa29d', name: '肥皂盒' },
+                { id: 'd99', pid: '1593030719171-e3b3a0468307', name: '掛鉤' },
+                { id: 'd100', pid: '1524184909792-62a27b30c042', name: '相框' }
             ],
             animal: [
                 { id: 'a1', pid: '1514888286974-6c03e2ca1dba', name: '橘貓' },
                 { id: 'a2', pid: '1537151608828-ea2b11777ee8', name: '黃金獵犬' },
-                { id: 'a3', pid: '1585110396000-c9ffd4e4b308', name: '白兔' },
-                { id: 'a4', pid: '1546182990-dffeafbe841d', name: '獅子' },
-                { id: 'a5', pid: '1484557985045-edf25e08da73', name: '小羊' },
+                { id: 'a3', pid: '1585110396000-c9ffd4e4b308', name: '小白兔' },
+                { id: 'a4', pid: '1546182990-dffeafbe841d', name: '非洲獅' },
+                { id: 'a5', pid: '1484557985045-edf25e08da73', name: '小綿羊' },
                 { id: 'a6', pid: '1555169062-013468b47731', name: '金剛鸚鵡' },
-                { id: 'a7', pid: '1526336024174-e58f5cdd8e13', name: '蝴蝶' },
-                { id: 'a8', pid: '1534361960057-19889db9621e', name: '柯基犬' },
+                { id: 'a7', pid: '1526336024174-e58f5cdd8e13', name: '彩色蝴蝶' },
+                { id: 'a8', pid: '1534361960057-19889db9621e', name: '小狗狗' },
                 { id: 'a9', pid: '1501705388883-4ed8a543392c', name: '企鵝' },
-                { id: 'a10', pid: '1510853675132-58241c941e4f', name: '狐狸' }, // 確保狐狸 PID 正確
-                { id: 'a11', pid: '1474511320723-9a56873867b5', name: '松鼠' },
-                { id: 'a12', pid: '1557050541571-518f155e8120', name: '大象' }, // 確保大象 PID 正確
+                { id: 'a10', pid: '1510853675132-58241c941e4f', name: '紅狐狸' },
+                { id: 'a11', pid: '1474511320723-9a56873867b5', name: '小松鼠' },
+                { id: 'a12', pid: '1557050541571-518f155e8120', name: '大象' },
                 { id: 'a13', pid: '1529669851596-ba9a5549af95', name: '袋鼠' },
                 { id: 'a14', pid: '1437622368342-7a3d73a34c8f', name: '海龜' },
-                { id: 'a15', pid: '1502082553048-f009c37129b9', name: '麋鹿' },
-                { id: 'a16', pid: '1564349683136-77e08bef1ed1', name: '貓熊' },
-                { id: 'a17', pid: '1444464666168-49d633b867ad', name: '藍鳥' },
+                { id: 'a15', pid: '1502082553048-f009c37129b9', name: '梅花鹿' },
+                { id: 'a16', pid: '1564349683136-77e08bef1ed1', name: '大貓熊' },
+                { id: 'a17', pid: '1444464666168-49d633b867ad', name: '青鳥' },
                 { id: 'a18', pid: '1507666405495-423fef0046fd', name: '長頸鹿' },
                 { id: 'a19', pid: '1516750484197-6b28d10c91ea', name: '斑馬' },
-                { id: 'a20', pid: '1456926631375-92c8ce872def', name: '獵豹' },
-                { id: 'a21', pid: '1425082661705-1834bfd09dca', name: '倉鼠' },
+                { id: 'a20', pid: '1456926631375-92c8ce872def', name: '非洲豹' },
+                { id: 'a21', pid: '1425082661705-1834bfd09dca', name: '小倉鼠' },
                 { id: 'a22', pid: '1543946207-39bd91e70ca7', name: '猴子' },
                 { id: 'a23', pid: '1503777119540-ce54b422baff', name: '老虎' },
-                { id: 'a24', pid: '1535241749837-272deae75305', name: '小豬' },
+                { id: 'a24', pid: '1535241749837-272deae75305', name: '粉紅豬' },
                 { id: 'a25', pid: '1497206365907-f5e630693df0', name: '火烈鳥' },
                 { id: 'a26', pid: '1518791841217-8f162f1e1131', name: '黑貓' },
                 { id: 'a27', pid: '1511216335773-ae10bd4196ad', name: '金魚' },
                 { id: 'a28', pid: '1520638306518-af6058c49319', name: '無尾熊' },
                 { id: 'a29', pid: '1553284965-0ef7c8591290', name: '公雞' },
-                { id: 'a30', pid: '1493406300554-954df6397ca0', name: '小馬' }
+                { id: 'a30', pid: '1493406300554-954df6397ca0', name: '小白馬' },
+                { id: 'a31', pid: '1520031447073-f1118671f652', name: '白天鵝' },
+                { id: 'a32', pid: '1520031447073-f1118671f653', name: '黑天鵝' },
+                { id: 'a33', pid: '1551222416-2485e94b29b4', name: '海豚' },
+                { id: 'a34', pid: '1555123416-2485e94b29b4', name: '藍鯨' },
+                { id: 'a35', pid: '1556123416-2485e94b29b4', name: '鯊魚' },
+                { id: 'a36', pid: '1557123416-2485e94b29b4', name: '章魚' },
+                { id: 'a37', pid: '1558123416-2485e94b29b4', name: '螃蟹' },
+                { id: 'a38', pid: '1559123416-2485e94b29b4', name: '龍蝦' },
+                { id: 'a39', pid: '1560123416-2485e94b29b4', name: '水母' },
+                { id: 'a40', pid: '1561123416-2485e94b29b4', name: '海馬' },
+                { id: 'a41', pid: '1562123416-2485e94b29b4', name: '蜜蜂' },
+                { id: 'a42', pid: '1563123416-2485e94b29b4', name: '瓢蟲' },
+                { id: 'a43', pid: '1564123416-2485e94b29b4', name: '蜻蜓' },
+                { id: 'a44', pid: '1565123416-2485e94b29b4', name: '螳螂' },
+                { id: 'a45', pid: '1566123416-2485e94b29b4', name: '蝸牛' },
+                { id: 'a46', pid: '1567123416-2485e94b29b4', name: '青蛙' },
+                { id: 'a47', pid: '1568123416-2485e94b29b4', name: '蜥蜴' },
+                { id: 'a48', pid: '1569123416-2485e94b29b4', name: '變色龍' },
+                { id: 'a49', pid: '1570123416-2485e94b29b4', name: '毒蛇' },
+                { id: 'a50', pid: '1571123416-2485e94b29b4', name: '鱷魚' },
+                { id: 'a51', pid: '1572123416-2485e94b29b4', name: '河馬' },
+                { id: 'a52', pid: '1573123416-2485e94b29b4', name: '犀牛' },
+                { id: 'a53', pid: '1574123416-2485e94b29b4', name: '水牛' },
+                { id: 'a54', pid: '1575123416-2485e94b29b4', name: '棕熊' },
+                { id: 'a55', pid: '1576123416-2485e94b29b4', name: '北極熊' },
+                { id: 'a56', pid: '1577123416-2485e94b29b4', name: '大猩猩' },
+                { id: 'a57', pid: '1578123416-2485e94b29b4', name: '黑猩猩' },
+                { id: 'a58', pid: '1579123416-2485e94b29b4', name: '狐獴' },
+                { id: 'a59', pid: '1580123416-2485e94b29b4', name: '樹懶' },
+                { id: 'a60', pid: '1581123416-2485e94b29b4', name: '食蟻獸' },
+                { id: 'a61', pid: '1582123416-2485e94b29b4', name: '啄木鳥' },
+                { id: 'a62', pid: '1583123416-2485e94b29b4', name: '翠鳥' },
+                { id: 'a63', pid: '1584123416-2485e94b29b4', name: '老鷹' },
+                { id: 'a64', pid: '1585123416-2485e94b29b4', name: '禿鷹' },
+                { id: 'a65', pid: '1586123416-2485e94b29b4', name: '孔雀' },
+                { id: 'a67', pid: '1588123416-2485e94b29b4', name: '麻雀' },
+                { id: 'a68', pid: '1589123416-2485e94b29b4', name: '燕子' },
+                { id: 'a69', pid: '1590123416-2485e94b29b4', name: '鵜鶘' },
+                { id: 'a71', pid: '1592123416-2485e94b29b4', name: '刺蝟' },
+                { id: 'a72', pid: '1593123416-2485e94b29b4', name: '鼴鼠' },
+                { id: 'a73', pid: '1594123416-2485e94b29b4', name: '蝙蝠' },
+                { id: 'a75', pid: '1596123416-2485e94b29b4', name: '河狸' },
+                { id: 'a76', pid: '1597123416-2485e94b29b4', name: '水獺' },
+                { id: 'a77', pid: '1598123416-2485e94b29b4', name: '海豹' },
+                { id: 'a78', pid: '1599123416-2485e94b29b4', name: '海獅' },
+                { id: 'a79', pid: '1600123416-2485e94b29b4', name: '海象' },
+                { id: 'a80', pid: '1601123416-2485e94b29b4', name: '海牛' },
+                { id: 'a81', pid: '1602123416-2485e94b29b4', name: '駱駝' },
+                { id: 'a82', pid: '1603123416-2485e94b29b4', name: '羊駝' },
+                { id: 'a83', pid: '1604123416-2485e94b29b4', name: '山羊' },
+                { id: 'a84', pid: '1605123416-2485e94b29b4', name: '公牛' },
+                { id: 'a85', pid: '1606123416-2485e94b29b4', name: '母牛' },
+                { id: 'a86', pid: '1607123416-2485e94b29b4', name: '毛驢' },
+                { id: 'a87', pid: '1608123416-2485e94b29b4', name: '駱馬' },
+                { id: 'a91', pid: '1612123416-2485e94b29b4', name: '小浣熊' },
+                { id: 'a92', pid: '1613123416-2485e94b29b4', name: '臭鼬' },
+                { id: 'a96', pid: '1617123416-2485e94b29b4', name: '貓頭鷹' },
+                { id: 'a97', pid: '1618123416-2485e94b29b4', name: '白鷺鷥' },
+                { id: 'a98', pid: '1619123416-2485e94b29b4', name: '仙鶴' },
+                { id: 'a100', pid: '1621123416-2485e94b29b4', name: '烏鴉' }
             ],
             workplace: [
-                { id: 'w1', pid: '1496181133206-80ce9b88a853', name: '筆記型電腦' },
-                { id: 'w2', pid: '1541167760496-162955ed8a9f', name: '咖啡杯' },
+                { id: 'w1', pid: '1496181133206-80ce9b88a853', name: '手提電腦' },
+                { id: 'w2', pid: '1541167760496-162955ed8a9f', name: '外帶咖啡' },
                 { id: 'w3', pid: '1506784365847-bbad939e9335', name: '桌曆' },
                 { id: 'w4', pid: '1517842645767-c639042777db', name: '記事本' },
-                { id: 'w5', pid: '1510127034890-ba27508e9f1c', name: '手提包' },
-                { id: 'w6', pid: '1497032628192-86f99bcd76bc', name: '滑鼠' },
-                { id: 'w7', pid: '1542744094-24638eff58bb', name: '鍵盤' },
+                { id: 'w5', pid: '1510127034890-ba27508e9f1c', name: '黑色公事包' },
+                { id: 'w6', pid: '1497032628192-86f99bcd76bc', name: '無線滑鼠' },
+                { id: 'w7', pid: '1542744094-24638eff58bb', name: '機械鍵盤' },
                 { id: 'w8', pid: '1586281380349-632531db7ed4', name: '計算機' },
                 { id: 'w9', pid: '1589365278144-c9e705f843ba', name: '藍色文件夾' },
                 { id: 'w10', pid: '1512314889357-e157c22f938d', name: '彩色便利貼' },
-                { id: 'w11', pid: '1583484963886-cfe2bef37d7b', name: '鋼筆' },
+                { id: 'w11', pid: '1583484963886-cfe2bef37d7b', name: '黑色鋼筆' },
                 { id: 'w12', pid: '1516321318423-f06f85e504b3', name: '事務印表機' },
-                { id: 'w13', pid: '1581091226825-a6a2a5aee158', name: '手機' },
-                { id: 'w14', pid: '1522071823991-b19c72f740ff', name: '識別證' },
+                { id: 'w13', pid: '1581091226825-a6a2a5aee158', name: '智慧手機' },
+                { id: 'w14', pid: '1522071823991-b19c72f740ff', name: '工作證' },
                 { id: 'w15', pid: '1513364776144-60967b0f800f', name: '釘書機' },
                 { id: 'w16', pid: '1506774050909-b2f88b8b82c1', name: '地球儀' },
-                { id: 'w17', pid: '1581091226033-d5c48150dbaa', name: '獎盃' },
-                { id: 'w18', pid: '1517433367423-c7e5b0f35086', name: '電腦主機' },
-                { id: 'w19', pid: '1584438784894-089d6a62b839', name: '盆栽' },
+                { id: 'w17', pid: '1581091226033-d5c48150dbaa', name: '金牌獎盃' },
+                { id: 'w18', pid: '1517433367423-c7e5b0f35086', name: '機房主機' },
+                { id: 'w19', pid: '1584438784894-089d6a62b839', name: '辦公室盆栽' },
                 { id: 'w20', pid: '1512418490979-92798ccc13b0', name: '黑框眼鏡' },
                 { id: 'w21', pid: '1486316145741-696730430073', name: '白板筆' },
                 { id: 'w22', pid: '1554415707-c831f320b923', name: '削鉛筆機' },
-                { id: 'w23', pid: '1488193138495-99228fd53229', name: '迴紋針' },
-                { id: 'w24', pid: '1532074534361-ec036f077435', name: '公司印章' },
-                { id: 'w25', pid: '1517048676734-d051473d93aa', name: '一壺熱茶' },
+                { id: 'w23', pid: '1488193138495-99228fd53229', name: '大迴紋針' },
+                { id: 'w24', pid: '1532074534361-ec036f077435', name: '印章' },
+                { id: 'w25', pid: '1517048676734-d051473d93aa', name: '熱茶杯' },
                 { id: 'w26', pid: '1533090161728-4a47b1711653', name: '辦公桌' },
-                { id: 'w27', pid: '1454160835308-562a2ad23969', name: '檯燈' },
+                { id: 'w27', pid: '1454160835308-562a2ad23969', name: '工作檯燈' },
                 { id: 'w28', pid: '1551033042-26255315176c', name: '彩色鉛筆' },
-                { id: 'w29', pid: '1515378804294-9a57002327b7', name: '電腦螢幕' },
-                { id: 'w30', pid: '1517245386807-bbad939e9335', name: '白板' }
+                { id: 'w29', pid: '1515378804294-9a57002327b7', name: '伺服器螢幕' },
+                { id: 'w30', pid: '1517245386807-bbad939e9335', name: '簡報白板' },
+                { id: 'w31', pid: '1517245386807-bbad939e9336', name: '紅印泥' },
+                { id: 'w32', pid: '1517245386807-bbad939e9337', name: '打孔機' },
+                { id: 'w33', pid: '1517245386807-bbad939e9338', name: '大長尺' },
+                { id: 'w34', pid: '1517245386807-bbad939e9339', name: '碎紙機' },
+                { id: 'w35', pid: '1517245386807-bbad939e9340', name: '美工刀' },
+                { id: 'w36', pid: '1517245386807-bbad939e9341', name: '膠水棒' },
+                { id: 'w38', pid: '1517245386807-bbad939e9343', name: '耳麥' },
+                { id: 'w39', pid: '1517245386807-bbad939e9344', name: '網路線' },
+                { id: 'w40', pid: '1517245386807-bbad939e9345', name: '隨身碟' },
+                { id: 'w41', pid: '1517245386807-bbad939e9346', name: '硬碟' },
+                { id: 'w42', pid: '1517245386807-bbad939e9347', name: '讀卡機' },
+                { id: 'w43', pid: '1517245386807-bbad939e9348', name: '投影機' },
+                { id: 'w44', pid: '1517245386807-bbad939e9349', name: '簡報筆' },
+                { id: 'w45', pid: '1517245386807-bbad939e9350', name: '雷射筆' },
+                { id: 'w46', pid: '1517245386807-bbad939e9351', name: '桌上電話' },
+                { id: 'w47', pid: '1517245386807-bbad939e9352', name: '對講機' },
+                { id: 'w48', pid: '1517245386807-bbad939e9353', name: '擴音器' },
+                { id: 'w49', pid: '1517245386807-bbad939e9354', name: '攝像頭' },
+                { id: 'w50', pid: '1517245386807-bbad939e9355', name: '三腳架' },
+                { id: 'w51', pid: '1517245386807-bbad939e9356', name: '背光鍵盤' },
+                { id: 'w52', pid: '1517245386807-bbad939e9357', name: '繪圖板' },
+                { id: 'w53', pid: '1517245386807-bbad939e9358', name: '感應筆' },
+                { id: 'w54', pid: '1517245386807-bbad939e9359', name: '滑鼠墊' },
+                { id: 'w55', pid: '1517245386807-bbad939e9360', name: '手腕墊' },
+                { id: 'w56', pid: '1517245386807-bbad939e9361', name: '升降桌' },
+                { id: 'w57', pid: '1517245386807-bbad939e9362', name: '人體工學椅' },
+                { id: 'w58', pid: '1517245386807-bbad939e9363', name: '靠腰墊' },
+                { id: 'w59', pid: '1517245386807-bbad939e9364', name: '腳踏板' },
+                { id: 'w60', pid: '1517245386807-bbad939e9365', name: '掛衣架' },
+                { id: 'w61', pid: '1517245386807-bbad939e9366', name: '咖啡機' },
+                { id: 'w62', pid: '1517245386807-bbad939e9367', name: '飲水機' },
+                { id: 'w63', pid: '1517245386807-bbad939e9368', name: '小冰箱' },
+                { id: 'w64', pid: '1517245386807-bbad939e9369', name: '微波爐' },
+                { id: 'w65', pid: '1517245386807-bbad939e9370', name: '氣泡水機' },
+                { id: 'w66', pid: '1517245386807-bbad939e9371', name: '急救箱' },
+                { id: 'w67', pid: '1517245386807-bbad939e9372', name: '滅火器' },
+                { id: 'w68', pid: '1517245386807-bbad939e9373', name: '逃生指標' },
+                { id: 'w69', pid: '1517245386807-bbad939e9374', name: '監視器' },
+                { id: 'w70', pid: '1517245386807-bbad939e9375', name: '警報器' },
+                { id: 'w71', pid: '1517245386807-bbad939e9376', name: '排隊機' },
+                { id: 'w72', pid: '1517245386807-bbad939e9377', name: '刷卡機' },
+                { id: 'w73', pid: '1517245386807-bbad939e9378', name: '打卡鐘' },
+                { id: 'w74', pid: '1517245386807-bbad939e9379', name: '條碼掃描槍' },
+                { id: 'w75', pid: '1517245386807-bbad939e9380', name: '收銀機' },
+                { id: 'w76', pid: '1517245386807-bbad939e9381', name: '點鈔機' },
+                { id: 'w78', pid: '1517245386807-bbad939e9383', name: '封口機' },
+                { id: 'w79', pid: '1517245386807-bbad939e9384', name: '標籤機' },
+                { id: 'w80', pid: '1517245386807-bbad939e9385', name: '電子磅秤' },
+                { id: 'w81', pid: '1517245386807-bbad939e9386', name: '保險箱' },
+                { id: 'w82', pid: '1517245386807-bbad939e9387', name: '書架' },
+                { id: 'w83', pid: '1517245386807-bbad939e9388', name: '活動櫃' },
+                { id: 'w84', pid: '1517245386807-bbad939e9389', name: '地圖掛軸' },
+                { id: 'w85', pid: '1517245386807-bbad939e9390', name: '時鐘' },
+                { id: 'w86', pid: '1517245386807-bbad939e9391', name: '空氣清淨機' },
+                { id: 'w87', pid: '1517245386807-bbad939e9392', name: '垃圾桶' },
+                { id: 'w88', pid: '1517245386807-bbad939e9393', name: '回收桶' },
+                { id: 'w89', pid: '1517245386807-bbad939e9394', name: '吸塵器' },
+                { id: 'w90', pid: '1517245386807-bbad939e9395', name: '洗地機' },
+                { id: 'w91', pid: '1517245386807-bbad939e9396', name: '推車' },
+                { id: 'w92', pid: '1517245386807-bbad939e9397', name: '摺疊椅' },
+                { id: 'w93', pid: '1517245386807-bbad939e9398', name: '摺疊桌' },
+                { id: 'w94', pid: '1517245386807-bbad939e9399', name: '雨傘架' },
+                { id: 'w95', pid: '1517245386807-bbad939e9400', name: '報紙架' },
+                { id: 'w96', pid: '1517245386807-bbad939e9401', name: '雜誌籃' },
+                { id: 'w97', pid: '1517245386807-bbad939e9402', name: '展示架' },
+                { id: 'w98', pid: '1517245386807-bbad939e9403', name: '屏風' },
+                { id: 'w99', pid: '1517245386807-bbad939e9404', name: '遮光簾' },
+                { id: 'w100', pid: '1517245386807-bbad939e9405', name: '地墊' }
             ]
         };
 
@@ -189,12 +389,6 @@
                     <>
                         <polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/>
                     </>
-                ),
-                send: (
-                    <>
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </>
                 )
             };
             return (
@@ -211,7 +405,6 @@
             const [displayMode, setDisplayMode] = useState('both');
             const [images, setImages] = useState([]);
             const [usedPidsHistory, setUsedPidsHistory] = useState(new Set()); 
-            const [story, setStory] = useState('');
             const [draggedIdx, setDraggedIdx] = useState(null);
 
             const getPool = () => {
@@ -256,7 +449,6 @@
                 setImages(selection);
                 setUsedPidsHistory(currentHistory);
                 setGameState('playing');
-                setStory('');
             };
 
             const nextQuestion = () => {
@@ -278,7 +470,6 @@
                 }
 
                 const backup = backupPool[Math.floor(Math.random() * backupPool.length)];
-                
                 if (backup) {
                     setImages(prev => {
                         const next = [...prev];
@@ -288,11 +479,9 @@
                 }
             };
 
-            // --- 強制清理拖動狀態 ---
             const onDragStart = (e, index) => {
                 setDraggedIdx(index);
                 e.dataTransfer.effectAllowed = "move";
-                // 使用一個全透明的點作為拖動圖像，防止原圖跳動
                 const img = new Image();
                 img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                 e.dataTransfer.setDragImage(img, 0, 0);
@@ -311,11 +500,8 @@
                 setDraggedIdx(index);
             };
 
-            const onDragEnd = (e) => {
-                setDraggedIdx(null);
-            };
+            const onDragEnd = () => setDraggedIdx(null);
 
-            // 全域清理機制
             useEffect(() => {
                 const cleanup = () => setDraggedIdx(null);
                 window.addEventListener('mouseup', cleanup);
@@ -326,68 +512,82 @@
                 };
             }, []);
 
+            // 調整網格分配，強制分配成兩排或多排，增加卡片尺寸
             const getGridCols = () => {
-                if (imageCount <= 4) return "grid-cols-2 sm:grid-cols-4";
-                if (imageCount <= 6) return "grid-cols-2 sm:grid-cols-3 md:grid-cols-6";
-                return "grid-cols-2 sm:grid-cols-4 md:grid-cols-8";
+                if (imageCount <= 2) return "grid-cols-1 md:grid-cols-2";
+                if (imageCount <= 4) return "grid-cols-2 md:grid-cols-2";
+                if (imageCount <= 6) return "grid-cols-2 md:grid-cols-3";
+                if (imageCount <= 8) return "grid-cols-2 md:grid-cols-4";
+                if (imageCount <= 12) return "grid-cols-3 md:grid-cols-6";
+                return "grid-cols-4 md:grid-cols-8";
             };
 
             return (
-                <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto" onDragOver={(e) => e.preventDefault()}>
-                    <header className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg">
-                                <Icon name="book" size={28} />
+                <div className="min-h-screen p-4 md:p-8 max-w-[95vw] mx-auto" onDragOver={(e) => e.preventDefault()}>
+                    <header className="flex flex-col sm:flex-row items-center justify-between mb-12 gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="p-4 bg-orange-500 rounded-3xl text-white shadow-xl rotate-[-3deg]">
+                                <Icon name="book" size={32} />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-black text-slate-800 tracking-tight text-center sm:text-left leading-tight">
+                                <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">
                                     繪本說書人
                                 </h1>
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                                    當前池進度: {usedPidsHistory.size} / {getPool().length}
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+                                        題庫巡迴進度: {usedPidsHistory.size} / {getPool().length}
+                                    </span>
+                                    <div className="w-24 h-1 bg-slate-200 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-orange-400 transition-all duration-500" 
+                                            style={{width: `${(usedPidsHistory.size / getPool().length) * 100}%`}}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         {gameState !== 'setup' && (
-                            <div className="flex items-center gap-3">
-                                {gameState === 'playing' && (
-                                    <button 
-                                        onClick={nextQuestion} 
-                                        className="px-4 py-2 bg-white border border-slate-200 rounded-full text-xs font-bold text-orange-500 hover:bg-orange-50 transition-all shadow-sm flex items-center gap-2 active:scale-95"
-                                    >
-                                        <Icon name="next" size={14} />
-                                        <span>下一題</span>
-                                    </button>
-                                )}
-                                <button onClick={() => setGameState('setup')} className="p-2.5 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-orange-500 hover:border-orange-200 transition-all shadow-sm active:scale-95">
-                                    <Icon name="refresh" size={20} />
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    onClick={nextQuestion} 
+                                    className="px-6 py-3 bg-white border-2 border-orange-500 rounded-full text-sm font-black text-orange-600 hover:bg-orange-50 transition-all shadow-lg flex items-center gap-2 active:scale-95"
+                                >
+                                    <Icon name="next" size={16} />
+                                    <span>下一組</span>
+                                </button>
+                                <button onClick={() => setGameState('setup')} className="p-3 bg-white border-2 border-slate-200 rounded-full text-slate-400 hover:text-orange-500 hover:border-orange-200 transition-all shadow-md active:scale-95">
+                                    <Icon name="refresh" size={24} />
                                 </button>
                             </div>
                         )}
                     </header>
 
                     {gameState === 'setup' && (
-                        <div className="max-w-xl mx-auto bg-white rounded-3xl shadow-xl border border-orange-100 p-8 animate-in fade-in zoom-in-95">
-                            <h2 className="text-xl font-bold mb-8 flex items-center gap-2 text-orange-600">
-                                <Icon name="settings" size={22} /> 冒險準備
+                        <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] shadow-2xl border border-orange-100 p-10 md:p-14 animate-in fade-in zoom-in-95">
+                            <h2 className="text-2xl font-black mb-10 flex items-center gap-3 text-orange-600">
+                                <Icon name="settings" size={28} /> 課程準備
                             </h2>
-                            <div className="space-y-10">
+                            <div className="space-y-12">
                                 <div>
-                                    <div className="flex justify-between items-end mb-4">
-                                        <label className="text-sm font-bold text-slate-700 uppercase tracking-widest">圖卡數量</label>
-                                        <span className="text-2xl font-black text-orange-500">{imageCount} 張</span>
+                                    <div className="flex justify-between items-end mb-6">
+                                        <label className="text-sm font-black text-slate-700 uppercase tracking-widest">挑選卡片數量</label>
+                                        <span className="text-4xl font-black text-orange-500">{imageCount} <span className="text-sm text-slate-300 font-normal">張</span></span>
                                     </div>
-                                    <input type="range" min="3" max="8" value={imageCount} onChange={(e) => setImageCount(parseInt(e.target.value))} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+                                    <input type="range" min="1" max="10" step="1" value={imageCount} onChange={(e) => setImageCount(parseInt(e.target.value))} className="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-orange-500" />
+                                    <div className="flex justify-between text-[10px] text-slate-300 mt-2 font-bold px-1">
+                                        <span>1 張</span>
+                                        <span>10 張</span>
+                                    </div>
                                 </div>
                                 
                                 <div>
-                                    <label className="text-sm font-bold text-slate-700 uppercase tracking-widest block mb-4">主題類別</label>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    <label className="text-sm font-black text-slate-700 uppercase tracking-widest block mb-6">主題類別 (每類100題)</label>
+                                    <div className="grid grid-cols-2 gap-4">
                                         {THEMES.map(t => (
                                             <button key={t.id} onClick={() => {
                                                 setSelectedTheme(t);
                                                 setUsedPidsHistory(new Set()); 
-                                            }} className={`p-4 rounded-2xl border-2 transition-all font-bold ${selectedTheme.id === t.id ? 'border-orange-500 bg-orange-50 text-orange-700 ring-4 ring-orange-50' : 'border-slate-50 bg-slate-50 text-slate-500 hover:border-slate-200'}`}>
+                                            }} className={`p-6 rounded-3xl border-2 transition-all font-black text-lg ${selectedTheme.id === t.id ? 'border-orange-500 bg-orange-50 text-orange-700 ring-8 ring-orange-50/50' : 'border-slate-50 bg-slate-50 text-slate-400 hover:border-slate-200'}`}>
                                                 {t.name}
                                             </button>
                                         ))}
@@ -395,13 +595,13 @@
                                 </div>
 
                                 <div>
-                                    <label className="text-sm font-bold text-slate-700 uppercase tracking-widest block mb-4">顯示模式</label>
-                                    <div className="flex p-1 bg-slate-100 rounded-2xl gap-1">
+                                    <label className="text-sm font-black text-slate-700 uppercase tracking-widest block mb-6">視覺模式</label>
+                                    <div className="flex p-2 bg-slate-100 rounded-[2rem] gap-2">
                                         {MODES.map(m => (
                                             <button 
                                                 key={m.id}
                                                 onClick={() => setDisplayMode(m.id)}
-                                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${displayMode === m.id ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                                className={`flex-1 py-4 rounded-2xl text-sm font-black transition-all ${displayMode === m.id ? 'bg-white text-orange-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
                                             >
                                                 {m.name}
                                             </button>
@@ -409,119 +609,75 @@
                                     </div>
                                 </div>
 
-                                <button onClick={startGame} className="w-full py-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-orange-100 active:scale-95 transition-all text-center">
-                                    開啟我的故事篇章
+                                <button onClick={startGame} className="w-full py-7 bg-orange-500 hover:bg-orange-600 text-white rounded-[2rem] font-black text-2xl shadow-2xl shadow-orange-200 active:scale-95 transition-all text-center">
+                                    開始課程任務
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {(gameState === 'playing' || gameState === 'finished') && (
-                        <div className="space-y-10 animate-in fade-in">
+                    {gameState === 'playing' && (
+                        <div className="space-y-12 animate-in fade-in duration-500">
                             <div className="flex flex-col items-center">
-                                <div className={`grid ${getGridCols()} gap-4 w-full`}>
+                                <div className={`grid ${getGridCols()} gap-6 md:gap-8 w-full`}>
                                     {images.map((img, idx) => (
                                         <div 
                                             key={`${img.id}-${idx}`}
-                                            draggable={gameState === 'playing'}
+                                            draggable={true}
                                             onDragStart={(e) => onDragStart(e, idx)}
                                             onDragOver={(e) => onDragOver(e, idx)}
                                             onDragEnd={onDragEnd}
                                             className={`card-item relative flex flex-col ${draggedIdx === idx ? 'is-dragging' : ''}`}
                                         >
-                                            <div className="bg-white p-2 pb-3 rounded-2xl card-shadow border border-slate-100 overflow-hidden cursor-grab active:cursor-grabbing h-full flex flex-col">
-                                                <div className="aspect-square rounded-xl overflow-hidden bg-slate-50 relative flex-shrink-0 flex items-center justify-center">
+                                            <div className="bg-white p-3 pb-6 rounded-[2.5rem] card-shadow border border-slate-100 overflow-hidden cursor-grab active:cursor-grabbing h-full flex flex-col">
+                                                <div className="aspect-square rounded-[2rem] overflow-hidden bg-slate-50 relative flex-shrink-0 flex items-center justify-center">
                                                     {displayMode !== 'text' ? (
                                                         <img 
-                                                            src={`https://images.unsplash.com/photo-${img.pid}?auto=format&fit=crop&q=80&w=400`} 
+                                                            src={`https://images.unsplash.com/photo-${img.pid}?auto=format&fit=crop&q=80&w=600`} 
                                                             className="w-full h-full object-cover select-none pointer-events-none"
                                                             alt={img.name}
                                                             referrerPolicy="no-referrer"
                                                             onError={() => handleImageError(img.pid, idx)}
                                                         />
                                                     ) : (
-                                                        <div className="w-full h-full text-mode-bg flex items-center justify-center p-4 pointer-events-none">
-                                                            <span className="text-xl md:text-2xl font-black text-orange-800 text-center leading-tight">
+                                                        <div className="w-full h-full text-mode-bg flex items-center justify-center p-8 pointer-events-none text-center">
+                                                            <span className="text-3xl md:text-5xl font-black text-orange-800 leading-tight text-label-large">
                                                                 {img.name}
                                                             </span>
                                                         </div>
                                                     )}
                                                 </div>
                                                 {displayMode === 'both' && (
-                                                    <div className="mt-2 text-center text-[10px] font-black text-orange-600 bg-orange-50 py-1 rounded-lg">
+                                                    <div className="mt-4 text-center text-xl font-black text-orange-600 bg-orange-50/50 py-3 rounded-2xl mx-2">
                                                         {img.name}
                                                     </div>
                                                 )}
-                                                <div className="absolute top-1.5 left-1.5 w-7 h-7 bg-orange-500 text-white rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white z-20 pointer-events-none">
+                                                
+                                                {/* 序號標記 */}
+                                                <div className="absolute top-4 left-4 w-12 h-12 bg-orange-500 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-2xl border-4 border-white z-20 pointer-events-none shadow-orange-200">
                                                     {idx + 1}
                                                 </div>
-                                                {gameState === 'playing' && (
-                                                    <div className="absolute top-2 right-2 p-1 bg-white/60 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-slate-400">
-                                                        <Icon name="move" size={12} />
-                                                    </div>
-                                                )}
+                                                
+                                                <div className="absolute top-5 right-5 p-2 bg-white/60 backdrop-blur-md rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-slate-400">
+                                                    <Icon name="move" size={16} />
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.2em] mt-6">
-                                    {gameState === 'playing' ? "按住卡片拖移以調整故事順序" : "圖片序列已固定"}
-                                </p>
-                            </div>
-
-                            <div className="max-w-3xl mx-auto">
-                                {gameState === 'playing' ? (
-                                    <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-orange-50">
-                                        <div className="flex items-center gap-2 mb-4 text-slate-400">
-                                            <Icon name="book" size={18} />
-                                            <span className="text-xs font-bold uppercase tracking-widest">編織故事內容</span>
-                                        </div>
-                                        <textarea 
-                                            value={story} 
-                                            onChange={(e) => setStory(e.target.value)} 
-                                            placeholder="按照上面的圖案與編號，寫下你的故事。你可以隨時更換順序，編號會跟著動喔！" 
-                                            className="w-full min-h-[300px] p-6 rounded-2xl bg-slate-50/50 border-2 border-transparent focus:border-orange-100 focus:bg-white focus:ring-0 resize-none text-lg text-slate-700 leading-relaxed transition-all" 
-                                        />
-                                        <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                            <div className="text-[10px] text-slate-300 font-bold uppercase tracking-widest text-center sm:text-left flex flex-wrap gap-2">
-                                                順序：{images.map(i=>i.name).join(' → ')}
-                                            </div>
-                                            <div className="flex gap-3 w-full sm:w-auto">
-                                                <button 
-                                                    onClick={() => setGameState('finished')} 
-                                                    disabled={story.length < 5} 
-                                                    className="w-full sm:w-auto px-16 py-4 bg-orange-500 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-orange-600 transition-all shadow-lg shadow-orange-100 disabled:opacity-30 active:scale-95 text-center"
-                                                >
-                                                    <Icon name="send" className="inline-block mr-2" />
-                                                    故事完成
-                                                </button>
-                                            </div>
-                                        </div>
+                                <div className="mt-16 flex flex-col items-center gap-4">
+                                    <p className="text-xs text-slate-300 font-black uppercase tracking-[0.4em] animate-pulse">
+                                        Drag cards to rearrange the visual story
+                                    </p>
+                                    <div className="flex flex-wrap justify-center gap-2 px-10 py-3 bg-white/50 backdrop-blur-sm rounded-full border border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-widest shadow-sm">
+                                        {images.map((i, idx) => (
+                                            <span key={idx} className="flex items-center">
+                                                {i.name}
+                                                {idx < images.length - 1 && <span className="mx-2 text-orange-300">→</span>}
+                                            </span>
+                                        ))}
                                     </div>
-                                ) : (
-                                    <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 animate-in slide-in-from-bottom-8 border border-orange-100 text-center">
-                                        <div className="mb-10">
-                                            <div className="inline-block px-4 py-1.5 bg-orange-50 text-orange-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-4">
-                                                Story Completed
-                                            </div>
-                                            <h2 className="text-3xl font-black text-slate-900 tracking-tight italic">
-                                                說書任務達成
-                                            </h2>
-                                        </div>
-                                        <div className="bg-orange-50/50 p-8 rounded-3xl border-l-4 border-orange-400 text-orange-800 italic mb-12 leading-relaxed text-lg shadow-sm text-left">
-                                            「你的故事充滿了畫面感，文字讓這些圖片有了新的靈魂！」
-                                        </div>
-                                        <div className="text-slate-700 whitespace-pre-wrap leading-loose text-xl font-serif border-t border-slate-50 pt-12 mb-12 text-left">
-                                            {story}
-                                        </div>
-                                        <button 
-                                            onClick={() => setGameState('setup')} 
-                                            className="w-full py-5 bg-slate-900 text-white rounded-2xl font-bold text-lg hover:bg-black transition-all shadow-xl"
-                                        >
-                                            開啟下一段說書冒險
-                                        </button>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     )}
